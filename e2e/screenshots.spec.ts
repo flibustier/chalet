@@ -26,7 +26,13 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.screenshot({
         path: `docs/sections-${scheme}.png`,
         fullPage: true,
-        clip: { x: 0, y: sources.y + (await page.evaluate(() => window.scrollY)) - 8, width: 1280, height: devices.y + devices.height - sources.y + 16 },
+        // The sections only, without the side menu
+        clip: {
+          x: sources.x - 24,
+          y: sources.y + (await page.evaluate(() => window.scrollY)) - 8,
+          width: sources.width + 48,
+          height: devices.y + devices.height - sources.y + 16,
+        },
       })
     }
   })
