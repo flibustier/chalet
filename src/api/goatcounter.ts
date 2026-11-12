@@ -5,6 +5,8 @@ export interface Connection {
   /** Base URL of the GoatCounter instance the key was created on, e.g. https://stats.example.com */
   url: string
   token: string
+  /** The demo: made-up figures, computed in the browser */
+  demo?: boolean
 }
 
 export interface Site {
@@ -82,13 +84,13 @@ const queues = new Map<string, Promise<unknown>>()
 const reachable = new Set<string>()
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-function enqueue<T>(host: string, task: () => Promise<T>): Promise<T> {
+function enqueue<T>(host: string, task: () => Promise<T>, spacing: number): Promise<T> {
   const previous = queues.get(host) ?? Promise.resolve()
   const run = previous.catch(() => undefined).then(async () => {
     try {
       return await task()
     } finally {
-      await sleep(SPACING_MS)
+      await sleep(spacing)
     }
   })
   queues.set(host, run)
@@ -107,7 +109,15 @@ const hour = (date: Date) => {
   return rounded.toISOString().replace('.000Z', 'Z')
 }
 
-export function createClient(token: string) {
+/** Where the calls go: GoatCounter, or for the demo, a stand-in that answers in the browser */
+export interface Transport {
+  fetch: (url: URL, init: RequestInit) => Promise<Response>
+  spacing: number
+}
+
+const network: Transport = { fetch: (url, init) => fetch(url, init), spacing: SPACING_MS }
+
+export function createClient(token: string, transport: Transport = network) {
   function get<T>(base: string, path: string, params: Record<string, string | number | boolean> = {}): Promise<T> {
     const url = new URL(`${normalizeUrl(base)}/api/v0${path}`)
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value))
@@ -125,8 +135,10 @@ export function createClient(token: string) {
     for (let attempt = 0; ; attempt++) {
       let response: Response
       try {
-        response = await enqueue(url.host, () =>
-          fetch(url, { headers: { Authorization: `Bearer ${token}` }, referrerPolicy: 'no-referrer' }),
+        response = await enqueue(
+          url.host,
+          () => transport.fetch(url, { headers: { Authorization: `Bearer ${token}` }, referrerPolicy: 'no-referrer' }),
+          transport.spacing,
         )
       } catch (error) {
         if (reachable.has(url.host) && attempt < 4) {

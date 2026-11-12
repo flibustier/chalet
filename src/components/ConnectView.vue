@@ -60,6 +60,7 @@ async function submit() {
         {{ checking ? 'Checking…' : 'Open the dashboard' }}
       </button>
     </form>
+    <p class="demo muted">Just looking? <a href="?demo">Try the demo</a>, with made-up figures.</p>
     <AppFooter />
   </main>
 </template>
@@ -102,6 +103,13 @@ label {
 .hint {
   font-size: 0.85rem;
   margin: 0;
+}
+
+.demo {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  text-wrap: balance;
 }
 
 .error {

@@ -26,6 +26,8 @@ watch(
 
 let observer: ResizeObserver | undefined
 onMounted(() => {
+  // The right width from the first frame, so a phone never sees the default one overflow
+  if (box.value?.clientWidth) width.value = Math.max(240, box.value.clientWidth)
   // Resizing in the next frame: changing the drawing inside the callback would loop
   observer = new ResizeObserver(([entry]) => {
     if (entry) requestAnimationFrame(() => (width.value = Math.max(240, entry.contentRect.width)))

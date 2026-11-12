@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import { createClient, type Connection, type Site } from '@/api/goatcounter'
+import { demoTransport } from '@/demo'
 import { useDashboard, type SectionKey } from '@/lib/dashboard'
 import { dayLabel, delta, formatNumber, formatPercent, longDay, siteName } from '@/lib/format'
 import { isDateKey, PERIODS, periodFor, periodForDay, shiftKey, todayKey, type PeriodId } from '@/lib/period'
@@ -19,7 +20,7 @@ const CountryMap = defineAsyncComponent(() => import('./CountryMap.vue'))
 const props = defineProps<{ connection: Connection }>()
 const emit = defineEmits<{ disconnect: [] }>()
 
-const client = createClient(props.connection.token)
+const client = createClient(props.connection.token, props.connection.demo ? demoTransport : undefined)
 const { state, load } = useDashboard(client)
 
 const sites = ref<Site[]>([])
@@ -106,7 +107,7 @@ function refresh() {
   const query = new URLSearchParams({ site: String(site.value.id), period: periodId.value })
   if (periodId.value === 'day' && dayDate.value) query.set('date', dayDate.value)
   if (pageId.value) query.set('page', String(pageId.value))
-  const address = `?${query}`
+  const address = props.connection.demo ? `?demo&${query}` : `?${query}`
   if (address !== location.search) {
     if (fromHistory || replaceNext) history.replaceState(null, '', address)
     else history.pushState(null, '', address)
@@ -195,7 +196,7 @@ const SECTIONS = [
 <template>
   <div class="layout">
     <header class="top">
-      <a class="brand" href="./">
+      <a class="brand" :href="connection.demo ? './?demo' : './'">
         <ChaletLogo :size="26" />
         <span>Chalet</span>
       </a>
@@ -209,7 +210,7 @@ const SECTIONS = [
         <button class="button ghost" type="button" :title="`Theme: ${theme}`" @click="cycleTheme">
           {{ theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾' }}<span class="visually-hidden">Theme: {{ theme }}</span>
         </button>
-        <button class="button ghost" type="button" @click="emit('disconnect')">Sign out</button>
+        <button class="button ghost" type="button" @click="emit('disconnect')">{{ connection.demo ? 'Exit demo' : 'Sign out' }}</button>
       </div>
     </header>
 
@@ -219,6 +220,11 @@ const SECTIONS = [
       </nav>
 
       <main class="main">
+        <p v-if="connection.demo" class="demo-note">
+          <span><strong>Demo</strong> · Made-up figures for three imaginary sites, computed in your browser.</span>
+          <button class="button" type="button" @click="emit('disconnect')">Use your GoatCounter</button>
+        </p>
+
         <p v-if="fatal" class="banner" role="alert">
           {{ fatal }} <button class="button" type="button" @click="start">Try again</button>
         </p>
@@ -496,6 +502,10 @@ const SECTIONS = [
 
 .site-picker {
   min-width: 0;
+}
+
+.controls .button {
+  white-space: nowrap;
 }
 
 .site-picker select {
@@ -845,6 +855,25 @@ const SECTIONS = [
 
 .hint {
   margin-top: 0.5rem !important;
+}
+
+.demo-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1.5rem;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.demo-note strong {
+  color: var(--text);
 }
 
 .banner {

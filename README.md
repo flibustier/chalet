@@ -9,6 +9,8 @@
   <br>
   <a href="https://flibustier.github.io/chalet/"><strong>Open Chalet</strong></a>
   ·
+  <a href="https://flibustier.github.io/chalet/?demo"><strong>Try the demo</strong></a>
+  ·
   <a href="#host-it-yourself">Host it yourself</a>
 </p>
 
@@ -49,12 +51,15 @@ Chalet runs at **https://flibustier.github.io/chalet/**, or on your own host (se
    permission only.
 2. Open Chalet, enter your GoatCounter address (for example `stats.example.com`) and the key.
 
+To look around first, [the demo](https://flibustier.github.io/chalet/?demo) shows three
+imaginary sites with made-up figures. They are computed in your browser: nothing to sign in to.
+
 The key is kept in your browser (local storage) and is only ever sent to your GoatCounter.
 Chalet has no server and makes no third-party requests.
 
-The copy at flibustier.github.io/chalet counts its own visits with GoatCounter: the page address and
-a fixed title only, never which sites you look at. A copy you build yourself counts nothing
-unless you ask it to (see below).
+The copy at flibustier.github.io/chalet counts its own visits with GoatCounter: the page
+address and a fixed title only (the demo counts as `/chalet/demo`), never which sites you
+look at. A copy you build yourself counts nothing unless you ask it to (see below).
 
 GoatCounter allows 4 API requests per second, and a browser spends two per call (a CORS
 preflight, then the request). Chalet spaces its calls and loads the sections in page order,
@@ -78,12 +83,15 @@ To count the visits of your copy in your own GoatCounter, build it with its addr
 
 ```sh
 npm ci
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5173, and http://localhost:5173/?demo needs no key
 npm run type-check
 npx playwright install chromium firefox
 npm run test:e2e   # against a fake GoatCounter, no key needed
-npm run screenshots # regenerates the pictures above, from made-up data
+npm run screenshots # regenerates the pictures above, from the demo
 ```
+
+The demo's pretend GoatCounter is `src/demo/server.ts`: it answers the same API calls, so the
+rest of Chalet runs unchanged.
 
 ## What GoatCounter does not measure
 

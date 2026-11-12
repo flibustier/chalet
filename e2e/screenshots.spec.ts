@@ -1,18 +1,17 @@
 import { test } from '@playwright/test'
 
-import { connectDemo, mockDemo } from './demo'
-
-// Regenerates the README screenshots from made-up data: npm run screenshots
+// Regenerates the README screenshots from the demo's made-up figures: npm run screenshots
 test.skip(!process.env.SCREENSHOTS, 'only with SCREENSHOTS=1')
 test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 })
 
 for (const scheme of ['light', 'dark'] as const) {
   test(`README screenshot, ${scheme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme })
-    await mockDemo(page)
-    await connectDemo(page)
-    await page.getByRole('radio', { name: '30 days' }).click()
+    await page.goto('/?demo&period=30d')
+    await page.locator('#campaigns').waitFor()
     await page.waitForFunction(() => !document.querySelector('.section.busy'))
+    // The pictures show the dashboard itself, without the demo's notice
+    await page.locator('.demo-note').evaluate((note) => note.remove())
     await page.mouse.move(0, 0)
     // The header, the summary and the start of the pages
     await page.screenshot({ path: `docs/screenshot-${scheme}.png`, clip: { x: 0, y: 0, width: 1280, height: 1080 } })
