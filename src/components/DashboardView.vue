@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, useTem
 
 import { createClient, type Connection, type Site } from '@/api/goatcounter'
 import { useDashboard, type SectionKey } from '@/lib/dashboard'
-import { delta, formatNumber, formatPercent, longDay, siteName } from '@/lib/format'
+import { dayLabel, delta, formatNumber, formatPercent, longDay, siteName } from '@/lib/format'
 import { isDateKey, PERIODS, periodFor, periodForDay, shiftKey, todayKey, type PeriodId } from '@/lib/period'
 import { applyTheme, loadTheme, type Theme } from '@/lib/storage'
 
@@ -226,23 +226,32 @@ const SECTIONS = [
         <div v-if="site" class="title">
           <div>
             <h1>{{ siteName(site.name) }}</h1>
-            <p v-if="period.bucket === 'hour' && period.date" class="day-nav">
-              <button type="button" class="arrow" aria-label="Previous day" title="Previous day" @click="goToDay(shiftKey(period.date, -1), { leaf: true })">‹</button>
-              <span>
-                <strong>{{ period.id === 'today' ? 'Today' : period.id === 'yesterday' ? 'Yesterday' : longDay(period.date) }}</strong>
-                <span class="muted">, compared with the day before</span>
+            <div v-if="period.bucket === 'hour' && period.date" class="day-nav">
+              <span class="stepper">
+                <button
+                  type="button"
+                  aria-label="Previous day"
+                  title="Previous day"
+                  @click="goToDay(shiftKey(period.date, -1), { leaf: true })"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next day"
+                  title="Next day"
+                  :disabled="period.date >= today"
+                  @click="goToDay(shiftKey(period.date, 1), { leaf: true })"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>
+                </button>
               </span>
-              <button
-                type="button"
-                class="arrow"
-                aria-label="Next day"
-                title="Next day"
-                :disabled="period.date >= today"
-                @click="goToDay(shiftKey(period.date, 1), { leaf: true })"
-              >
-                ›
-              </button>
-            </p>
+              <p>
+                <time :datetime="period.date" :title="longDay(period.date)">{{
+                  period.id === 'today' ? 'Today' : period.id === 'yesterday' ? 'Yesterday' : dayLabel(period.date, today)
+                }}</time><span class="muted">, compared with the day before</span>
+              </p>
+            </div>
             <p v-else class="muted">{{ periodInfo?.label }}, compared with {{ periodInfo?.previous }}</p>
           </div>
           <div class="periods" role="radiogroup" aria-label="Period">
@@ -603,30 +612,72 @@ const SECTIONS = [
   position: relative;
 }
 
+/* Same height as the other periods' line, so the header doesn't move from one view to another */
+.title p,
+.day-nav {
+  min-height: 2rem;
+}
+
+.title p {
+  display: flex;
+  align-items: center;
+}
+
 .day-nav {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
 }
 
-.arrow {
-  width: 1.8rem;
-  height: 1.8rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  cursor: pointer;
-  font-size: 1.1rem;
-  line-height: 1;
-  color: var(--text);
+.day-nav p {
+  margin: 0;
+  min-height: 0;
+  display: block;
+  text-wrap: balance;
 }
 
-.arrow:hover:not(:disabled) {
+.day-nav time {
+  font-weight: 600;
+}
+
+.stepper {
+  display: inline-flex;
+  flex: none;
   background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
 }
 
-.arrow:disabled {
+.stepper button {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.stepper svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.stepper button:disabled {
   opacity: 0.35;
   cursor: default;
 }

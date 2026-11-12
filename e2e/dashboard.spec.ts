@@ -158,12 +158,22 @@ test('opens a day from the chart, moves day by day, and goes back', async ({ pag
   await page.getByRole('radio', { name: '30 days' }).click()
   await page.waitForFunction(() => !document.querySelector('.section.busy'))
 
+  const header = async () => {
+    const [title, periods] = await Promise.all([page.locator('.title').boundingBox(), page.locator('.periods').boundingBox()])
+    return { height: title!.height, top: periods!.y }
+  }
+  const before = await header()
+
   // The bar of the day 9 days ago
   const day = parisDay(9)
   await page.locator('#summary svg[role=group] rect.pick').nth(20).click()
   await expect(page).toHaveURL(new RegExp(`period=day&date=${day}`))
   await expect(page.locator('#summary svg path.bar')).toHaveCount(24)
   await expect(page.locator('.day-nav')).toContainText('compared with the day before')
+  // A short date this year, the full one on hover, and the header keeps its shape
+  await expect(page.locator('.day-nav time')).toHaveText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/)
+  await expect(page.locator('.day-nav time')).toHaveAttribute('title', /, \d{4}$/)
+  expect(await header()).toEqual(before)
 
   await page.getByRole('button', { name: 'Previous day' }).click()
   await expect(page).toHaveURL(new RegExp(`date=${parisDay(10)}`))

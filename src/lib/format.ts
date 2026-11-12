@@ -57,3 +57,16 @@ const longDayFormat = new Intl.DateTimeFormat('en', {
 
 /** "Monday, November 9, 2026" for a YYYY-MM-DD day */
 export const longDay = (key: string) => longDayFormat.format(asDate(key))
+
+const shortDayYearFormat = new Intl.DateTimeFormat('en', {
+  timeZone: 'UTC',
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+})
+const shortDayNoYearFormat = new Intl.DateTimeFormat('en', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })
+
+/** "Mon, Nov 9" this year, "Sun, Nov 9, 2025" before: short enough to sit beside the periods */
+export const dayLabel = (key: string, today: string) =>
+  (key.slice(0, 4) === today.slice(0, 4) ? shortDayNoYearFormat : shortDayYearFormat).format(asDate(key))
