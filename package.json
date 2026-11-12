@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
     "test:e2e": "playwright test",
-    "deploy": "./scripts/deploy.sh"
+    "deploy": "./scripts/deploy.sh",
+    "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts --project=chromium"
   },
   "dependencies": {
     "d3-geo": "^3.1.2",

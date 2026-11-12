@@ -1,6 +1,23 @@
-# Chalet
+<p align="center">
+  <img src="docs/logo.svg" width="88" height="88" alt="">
+</p>
 
-A calm, minimal dashboard for [GoatCounter](https://www.goatcounter.com).
+<h1 align="center">Chalet</h1>
+
+<p align="center">
+  A calm, minimal dashboard for <a href="https://www.goatcounter.com">GoatCounter</a>.
+  <br>
+  <a href="https://flibustier.github.io/chalet/"><strong>Open Chalet</strong></a>
+  ·
+  <a href="#host-it-yourself">Host it yourself</a>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+    <img src="docs/screenshot-light.png" width="860" alt="Chalet showing 30 days of visits for a site: totals compared with the previous period, a bar chart with its average, and the top pages with their trend">
+  </picture>
+</p>
 
 Chalet reads your statistics through GoatCounter's API and shows them on one quiet page:
 visits over time, pages, referrers, sources, countries, languages, devices, browsers,
@@ -10,7 +27,17 @@ systems, events and campaigns, each compared with the previous period.
   GoatCounter directly from the browser, so it works with a self-hosted instance as well as
   with goatcounter.com.
 - **All your sites in one place.** One API key opens every site of your account.
+- **Pick a page** and the whole dashboard narrows to it: where its visitors come from, their
+  countries, their devices.
+- **Countries as a list or on a map**, and the visits chart with its average.
 - **Light and dark**, following your device or your choice. Works on a phone.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/sections-dark.png">
+    <img src="docs/sections-light.png" width="860" alt="Sources as shares, countries on a world map, languages, and devices">
+  </picture>
+</p>
 
 ## Use it
 
@@ -53,6 +80,7 @@ npm run dev        # http://localhost:5173
 npm run type-check
 npx playwright install chromium firefox
 npm run test:e2e   # against a fake GoatCounter, no key needed
+npm run screenshots # regenerates the pictures above, from made-up data
 ```
 
 ## What GoatCounter does not measure
