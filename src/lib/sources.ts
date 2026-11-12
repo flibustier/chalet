@@ -1,9 +1,11 @@
 import type { StatEntry } from '@/api/goatcounter'
 
-export type Source = 'direct' | 'search' | 'social' | 'campaign' | 'website'
+export type Source = 'direct' | 'search' | 'social' | 'email' | 'campaign' | 'website'
 
 // GoatCounter gives each referrer a scheme: h (a web page), g (a name it generated, like
 // "Google"), o (an app or other origin), c (a campaign). An empty name means no referrer.
+// Webmail first: mail.google.com is an email, not a search
+const EMAIL = /^e-?mail$|newsletter|gmail|outlook|hotmail|webmail|(^|\.)mail\.|proton\.me|protonmail|fastmail|tutanota|yahoo\.com\/mail/i
 const SEARCH = /google|bing|duckduckgo|yahoo|ecosia|qwant|yandex|baidu|startpage|brave|kagi|naver|seznam|search/i
 const SOCIAL =
   /facebook|instagram|twitter|(^|\.)t\.co$|(^|\.)x\.com|reddit|linkedin|youtube|tiktok|pinterest|discord|telegram|whatsapp|mastodon|bsky|bluesky|threads|snapchat|hacker ?news|ycombinator|lemmy|tumblr|vk\.com|weibo/i
@@ -11,6 +13,7 @@ const SOCIAL =
 export function sourceOf(entry: Pick<StatEntry, 'name' | 'ref_scheme'>): Source {
   if (!entry.name) return 'direct'
   if (entry.ref_scheme === 'c') return 'campaign'
+  if (EMAIL.test(entry.name)) return 'email'
   if (SEARCH.test(entry.name)) return 'search'
   if (SOCIAL.test(entry.name)) return 'social'
   return 'website'
@@ -23,7 +26,7 @@ export function isInternal(entry: Pick<StatEntry, 'name'>, domain: string) {
 }
 
 export function sourceTotals(entries: StatEntry[], domain: string) {
-  const totals: Record<Source, number> = { direct: 0, search: 0, social: 0, campaign: 0, website: 0 }
+  const totals: Record<Source, number> = { direct: 0, search: 0, social: 0, email: 0, campaign: 0, website: 0 }
   for (const entry of entries) if (!isInternal(entry, domain)) totals[sourceOf(entry)] += entry.count
   return totals
 }

@@ -3,6 +3,8 @@ import { ref } from 'vue'
 
 import { createClient, normalizeUrl, type Connection } from '@/api/goatcounter'
 
+import ChaletLogo from './ChaletLogo.vue'
+
 const emit = defineEmits<{ connect: [connection: Connection] }>()
 
 const url = ref('')
@@ -36,7 +38,7 @@ async function submit() {
 <template>
   <main class="connect">
     <div class="intro">
-      <h1>Chalet</h1>
+      <h1><ChaletLogo :size="44" /> Chalet</h1>
       <p class="muted">A calm, minimal dashboard for GoatCounter.</p>
     </div>
     <form class="card form" @submit.prevent="submit">
@@ -72,6 +74,9 @@ async function submit() {
 
 .intro h1 {
   font-size: 2.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .intro p {

@@ -37,7 +37,7 @@ export interface MockOptions {
 }
 
 export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
-  const calls: string[] = []
+  const calls: { path: string; params: URLSearchParams }[] = []
   let limited = false
   const handler = async (route: Route) => {
     const request = route.request()
@@ -45,7 +45,9 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
     const url = new URL(request.url())
     const site = HOSTS.indexOf(url.host) + 1
     const path = url.pathname.replace('/api/v0', '')
-    calls.push(path)
+    calls.push({ path, params: url.searchParams })
+    // A filter on pages: only those paths, and a third of the visits
+    const only = url.searchParams.get('include_paths')?.split(',').map(Number)
     const json = (body: unknown, status = 200) => route.fulfill({ status, headers: cors, json: body })
     if (request.headers().authorization !== `Bearer ${options.token ?? TOKEN}`) return json({ error: 'no' }, 401)
     if (options.rateLimitOnce === path && !limited) {
@@ -54,7 +56,9 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
     }
     const start = new Date(url.searchParams.get('start') ?? Date.now() - 7 * 86400000)
     const end = new Date(url.searchParams.get('end') ?? Date.now())
-    const stats = days(start, end, site)
+    const stats = days(start, end, site).map((day) =>
+      only ? { ...day, hourly: day.hourly.map((v) => Math.round(v / 3)), daily: Math.round(day.daily / 3) } : day,
+    )
 
     switch (path) {
       case '/me':
@@ -74,10 +78,8 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
           max: 0,
           stats: [],
         })
-        return json({
-          hits: [page(1, '/', 0.5), page(2, '/pricing', 0.3), page(3, '/blog/hello', 0.2), page(4, 'signup-click', 0.05, true)],
-          more: false,
-        })
+        const hits = [page(1, '/', 0.5), page(2, '/pricing', 0.3), page(3, '/blog/hello', 0.2), page(4, 'signup-click', 0.05, true)]
+        return json({ hits: only ? hits.filter((hit) => only.includes(hit.path_id)) : hits, more: false })
       }
       case '/stats/toprefs':
         return json({
@@ -85,7 +87,7 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
             { id: '', name: '', count: 40, ref_scheme: 'o' },
             { id: 'Google', name: 'Google', count: 30, ref_scheme: 'g' },
             { id: 'www.reddit.com', name: 'www.reddit.com', count: 20, ref_scheme: 'h' },
-            { id: 'blog.example.net', name: 'blog.example.net', count: 10, ref_scheme: 'h' },
+            { id: 'Email', name: 'Email', count: 10, ref_scheme: 'g' },
             { id: 'internal', name: `${url.host.replace('stats.', '')}/pricing`, count: 50, ref_scheme: 'h' },
           ],
           more: false,

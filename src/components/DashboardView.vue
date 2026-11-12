@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 
 import { createClient, type Connection, type Site } from '@/api/goatcounter'
 import { useDashboard, type SectionKey } from '@/lib/dashboard'
@@ -7,9 +7,13 @@ import { delta, formatNumber, formatPercent, siteName } from '@/lib/format'
 import { PERIODS, periodFor, type PeriodId } from '@/lib/period'
 import { applyTheme, loadTheme, type Theme } from '@/lib/storage'
 
+import ChaletLogo from './ChaletLogo.vue'
 import RankedList from './RankedList.vue'
 import ShareCards from './ShareCards.vue'
 import VisitsChart from './VisitsChart.vue'
+
+// The map and its world outline load only when someone opens it
+const CountryMap = defineAsyncComponent(() => import('./CountryMap.vue'))
 
 const props = defineProps<{ connection: Connection }>()
 const emit = defineEmits<{ disconnect: [] }>()
@@ -25,6 +29,9 @@ const params = new URLSearchParams(location.search)
 const siteId = ref(Number(params.get('site')) || 0)
 const periodId = ref<PeriodId>(PERIODS.some((p) => p.id === params.get('period')) ? (params.get('period') as PeriodId) : '7d')
 const asTable = ref(false)
+const countriesAsMap = ref(false)
+// A page (GoatCounter path id) the whole dashboard is narrowed to, 0 for all pages
+const pageId = ref(Number(params.get('page')) || 0)
 
 const site = computed(() => sites.value.find((s) => s.id === siteId.value) ?? sites.value[0])
 const period = computed(() => periodFor(periodId.value, timeZone.value))
@@ -47,13 +54,24 @@ async function start() {
 function refresh() {
   if (!site.value) return
   const query = new URLSearchParams({ site: String(site.value.id), period: periodId.value })
+  if (pageId.value) query.set('page', String(pageId.value))
   history.replaceState(null, '', `?${query}`)
   document.title = `${siteName(site.value.name)} · Chalet`
-  load(site.value, period.value, timeZone.value)
+  load(site.value, period.value, timeZone.value, pageId.value || undefined)
 }
 
 onMounted(start)
-watch([site, periodId], refresh)
+watch([site, periodId, pageId], refresh)
+
+const pageLabel = computed(() => {
+  const rows = [...(data.value?.pages ?? []), ...(data.value?.eventsList ?? [])]
+  return rows.find((row) => row.key === String(pageId.value))?.label ?? `page #${pageId.value}`
+})
+
+function selectPage(key: string) {
+  pageId.value = Number(key)
+  document.getElementById('summary')?.scrollIntoView({ behavior: 'smooth' })
+}
 
 const data = computed(() => state.data)
 const busy = (section: SectionKey) => state.loading.has(section)
@@ -80,6 +98,7 @@ const sources = computed(() => {
     { key: 'search', label: 'Search', value: s.search },
     { key: 'social', label: 'Social', value: s.social },
     { key: 'website', label: 'Websites', value: s.website },
+    ...(s.email ? [{ key: 'email', label: 'Email', value: s.email }] : []),
     ...(s.campaign ? [{ key: 'campaign', label: 'Campaigns', value: s.campaign }] : []),
   ]
 })
@@ -115,17 +134,13 @@ const SECTIONS = [
   <div class="layout">
     <header class="top">
       <a class="brand" href="./">
-        <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M4 15 16 5l12 10" />
-          <path d="M8 13v13h16V13" />
-          <rect x="14" y="18" width="4" height="8" rx="1" />
-        </svg>
+        <ChaletLogo :size="26" />
         <span>Chalet</span>
       </a>
       <div class="controls">
         <label v-if="sites.length > 1" class="site-picker">
           <span class="visually-hidden">Site</span>
-          <select v-model="siteId" class="input">
+          <select v-model="siteId" class="input" @change="pageId = 0">
             <option v-for="s in sites" :key="s.id" :value="s.id">{{ siteName(s.name) }}</option>
           </select>
         </label>
@@ -166,6 +181,11 @@ const SECTIONS = [
           </div>
         </div>
 
+        <div v-if="pageId" class="filter">
+          <span>Only <strong>{{ pageLabel }}</strong></span>
+          <button class="button" type="button" @click="pageId = 0">Show all pages <span aria-hidden="true">✕</span></button>
+        </div>
+
         <p v-if="state.error" class="banner" role="alert">
           {{ state.error }} <button class="button" type="button" @click="refresh">Try again</button>
         </p>
@@ -200,6 +220,10 @@ const SECTIONS = [
               <div class="card chart-card">
                 <div class="chart-head">
                   <span>Visits</span>
+                  <span v-if="average > 0 && !asTable" class="key">
+                    <svg width="20" height="6" aria-hidden="true"><line x1="1" x2="19" y1="3" y2="3" /></svg>
+                    avg {{ formatNumber(Math.round(average)) }} per {{ period.bucket }}
+                  </span>
                   <button class="link" type="button" :aria-pressed="asTable" @click="asTable = !asTable">
                     {{ asTable ? 'Chart' : 'Table' }}
                   </button>
@@ -212,9 +236,10 @@ const SECTIONS = [
           <section id="pages" class="section" :class="{ busy: busy('pages') }">
             <div class="aside">
               <h2>Pages</h2>
-              <p v-if="data.pages[0]" class="muted"><strong>{{ data.pages[0].label }}</strong> is your top page.</p>
+              <p v-if="data.pages[0] && !pageId" class="muted"><strong>{{ data.pages[0].label }}</strong> is your top page.</p>
+              <p v-if="!pageId" class="muted hint">Pick a page to see everything for it alone.</p>
             </div>
-            <RankedList class="content" :rows="data.pages" heading="Page" show-trend :limit="10" />
+            <RankedList class="content" :rows="data.pages" heading="Page" show-trend selectable :limit="10" @select="selectPage($event.key)" />
           </section>
 
           <section id="referrers" class="section" :class="{ busy: busy('referrers') }">
@@ -229,7 +254,10 @@ const SECTIONS = [
           <section id="sources" class="section" :class="{ busy: busy('referrers') }">
             <div class="aside">
               <h2>Sources</h2>
-              <p v-if="topSource?.value" class="muted">Most visitors come <strong>{{ topSource.key === 'direct' ? 'directly' : `from ${topSource.label.toLowerCase()}` }}</strong>.</p>
+              <p v-if="topSource?.value" class="muted">
+                Most visitors come
+                <strong>{{ topSource.key === 'direct' ? 'directly' : topSource.key === 'email' ? 'from emails' : `from ${topSource.label.toLowerCase()}` }}</strong>.
+              </p>
             </div>
             <ShareCards class="content" :items="sources" />
           </section>
@@ -238,8 +266,15 @@ const SECTIONS = [
             <div class="aside">
               <h2>Countries</h2>
               <p v-if="data.countries[0]" class="muted">{{ data.countries[0].icon }} <strong>{{ data.countries[0].label }}</strong> leads.</p>
+              <div class="views" role="radiogroup" aria-label="Countries view">
+                <button type="button" role="radio" :aria-checked="!countriesAsMap" :class="{ selected: !countriesAsMap }" @click="countriesAsMap = false">List</button>
+                <button type="button" role="radio" :aria-checked="countriesAsMap" :class="{ selected: countriesAsMap }" @click="countriesAsMap = true">Map</button>
+              </div>
             </div>
-            <RankedList class="content" :rows="data.countries" heading="Country" />
+            <div v-if="countriesAsMap" class="content card map-card">
+              <CountryMap :rows="data.countries" />
+            </div>
+            <RankedList v-else class="content" :rows="data.countries" heading="Country" />
           </section>
 
           <section id="languages" class="section" :class="{ busy: busy('languages') }">
@@ -278,7 +313,15 @@ const SECTIONS = [
               <h2>Events</h2>
               <p class="muted">Sent with <code>goatcounter.count({ event: true })</code>.</p>
             </div>
-            <RankedList class="content" :rows="data.eventsList" heading="Event" show-trend empty="No events for this period" />
+            <RankedList
+              class="content"
+              :rows="data.eventsList"
+              heading="Event"
+              show-trend
+              selectable
+              empty="No events for this period"
+              @select="selectPage($event.key)"
+            />
           </section>
 
           <section id="campaigns" class="section" :class="{ busy: busy('campaigns') }">
@@ -323,19 +366,6 @@ const SECTIONS = [
   font-family: var(--font-serif);
   font-size: 1.25rem;
   font-weight: 600;
-}
-
-.brand svg {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.brand svg rect {
-  fill: var(--accent);
-  stroke: none;
 }
 
 .controls {
@@ -444,6 +474,36 @@ const SECTIONS = [
   box-shadow: 0 0 0 1px var(--border);
 }
 
+.views {
+  display: inline-flex;
+  margin-top: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.views button {
+  border: none;
+  background: transparent;
+  padding: 0.2rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.views button.selected {
+  background: var(--surface-raised);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.map-card {
+  padding: 1rem 1.25rem;
+}
+
 .section {
   display: grid;
   grid-template-columns: 13rem minmax(0, 1fr);
@@ -527,13 +587,48 @@ const SECTIONS = [
   font-size: 0.9rem;
 }
 
+.key {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.key line {
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+}
+
 .link {
+  margin-left: 1rem;
   background: none;
   border: none;
   color: var(--accent-ink);
   cursor: pointer;
   font-size: 0.85rem;
   padding: 0;
+}
+
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  margin-top: 0.5rem !important;
 }
 
 .banner {

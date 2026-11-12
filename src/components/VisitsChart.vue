@@ -19,8 +19,9 @@ const active = ref<number | null>(null)
 
 let observer: ResizeObserver | undefined
 onMounted(() => {
+  // Resizing in the next frame: changing the drawing inside the callback would loop
   observer = new ResizeObserver(([entry]) => {
-    if (entry) width.value = Math.max(240, entry.contentRect.width)
+    if (entry) requestAnimationFrame(() => (width.value = Math.max(240, entry.contentRect.width)))
   })
   if (box.value) observer.observe(box.value)
 })
@@ -37,6 +38,10 @@ const ticks = computed(() => {
 })
 
 const top = computed(() => ticks.value[ticks.value.length - 1] ?? 1)
+const average = computed(() =>
+  props.points.length ? props.points.reduce((sum, point) => sum + point.value, 0) / props.points.length : 0,
+)
+const averageText = computed(() => `avg ${formatNumber(Math.round(average.value))}`)
 const plotWidth = computed(() => width.value - LEFT)
 const plotHeight = HEIGHT - AXIS
 const band = computed(() => plotWidth.value / Math.max(1, props.points.length))
@@ -95,6 +100,12 @@ function onKey(event: KeyboardEvent) {
           <td>{{ formatNumber(point.value) }}</td>
         </tr>
       </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">Average</th>
+          <td>{{ formatNumber(Math.round(average)) }}</td>
+        </tr>
+      </tfoot>
     </table>
     <template v-else>
       <svg
@@ -102,7 +113,7 @@ function onKey(event: KeyboardEvent) {
         :height="HEIGHT"
         :viewBox="`0 0 ${width} ${HEIGHT}`"
         role="group"
-        aria-label="Visits over the period. Use the arrow keys to read each bar."
+        :aria-label="`Visits over the period, ${averageText} per ${bucket}. Use the arrow keys to read each bar.`"
         tabindex="0"
         @keydown="onKey"
         @blur="active = null"
@@ -122,6 +133,10 @@ function onKey(event: KeyboardEvent) {
             class="bar"
             :class="{ active: index === active }"
           />
+        </g>
+        <!-- The average, as a dotted reference line; its value is in the key above -->
+        <g v-if="average > 0" class="average">
+          <line :x1="LEFT" :x2="width" :y1="y(average)" :y2="y(average)" />
         </g>
         <g class="axis">
           <template v-for="(point, index) in points" :key="point.key">
@@ -179,6 +194,13 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+.average line {
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+}
+
 .bar {
   fill: var(--accent);
   transition: fill 0.1s;
@@ -222,6 +244,12 @@ svg {
   text-align: left;
   padding: 0.35rem 0.25rem;
   border-bottom: 1px solid var(--hairline);
+}
+
+.table tfoot th,
+.table tfoot td {
+  font-weight: 600;
+  border-bottom: none;
 }
 
 .table td:last-child,

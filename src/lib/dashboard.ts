@@ -77,7 +77,9 @@ export function useDashboard(client: Client) {
   })
   let generation = 0
 
-  async function load(site: Site, period: Period, timeZone: string) {
+  /** `path`: a GoatCounter path id, to see the whole dashboard for that page only */
+  async function load(site: Site, period: Period, timeZone: string, path?: number) {
+    const paths = path ? [path] : undefined
     const current = ++generation
     const stale = () => current !== generation
     state.error = ''
@@ -92,7 +94,7 @@ export function useDashboard(client: Client) {
           pages: [],
           eventsList: [],
           referrers: [],
-          sources: { direct: 0, search: 0, social: 0, campaign: 0, website: 0 },
+          sources: { direct: 0, search: 0, social: 0, email: 0, campaign: 0, website: 0 },
           countries: [],
           languages: [],
           devices: { phone: 0, tablet: 0, desktop: 0 },
@@ -106,10 +108,13 @@ export function useDashboard(client: Client) {
       state.data = { ...next }
       state.loading.delete(section)
     }
-    const stat = (page: StatPage, range: Range = period.range) => client.stats(site, page, range)
+    const stat = (page: StatPage, range: Range = period.range) => client.stats(site, page, range, paths)
 
     try {
-      const [total, previousTotal] = [await client.total(site, period.range), await client.total(site, period.previous)]
+      const [total, previousTotal] = [
+        await client.total(site, period.range, paths),
+        await client.total(site, period.previous, paths),
+      ]
       publish('summary', {
         visits: sum(total.stats),
         previousVisits: sum(previousTotal.stats),
@@ -117,7 +122,10 @@ export function useDashboard(client: Client) {
         series: series(total.stats, period, timeZone),
       })
 
-      const [hits, previousHits] = [await client.hits(site, period.range), await client.hits(site, period.previous)]
+      const [hits, previousHits] = [
+        await client.hits(site, period.range, paths),
+        await client.hits(site, period.previous, paths),
+      ]
       const before = new Map(previousHits.hits.map((hit) => [hit.path_id, hit.count]))
       publish('pages', {
         pages: pathRows(hits.hits.filter((hit) => !hit.event), before),

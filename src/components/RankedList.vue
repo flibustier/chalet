@@ -5,9 +5,10 @@ import type { Row } from '@/lib/dashboard'
 import { delta, formatNumber, formatPercent } from '@/lib/format'
 
 const props = withDefaults(
-  defineProps<{ rows: Row[]; heading: string; showTrend?: boolean; empty?: string; limit?: number }>(),
-  { showTrend: false, empty: 'Nothing for this period', limit: 8 },
+  defineProps<{ rows: Row[]; heading: string; showTrend?: boolean; empty?: string; limit?: number; selectable?: boolean }>(),
+  { showTrend: false, empty: 'Nothing for this period', limit: 8, selectable: false },
 )
+const emit = defineEmits<{ select: [row: Row] }>()
 
 const query = ref('')
 const expanded = ref(false)
@@ -36,7 +37,16 @@ const shown = computed(() => (expanded.value ? filtered.value : filtered.value.s
     <ul v-else>
       <li v-for="row in shown" :key="row.key">
         <div class="line">
-          <span class="label" :title="row.label">
+          <button
+            v-if="selectable"
+            type="button"
+            class="label pick"
+            :title="`Show only ${row.label}`"
+            @click="emit('select', row)"
+          >
+            {{ row.label }}
+          </button>
+          <span v-else class="label" :title="row.label">
             <span v-if="row.icon" class="icon" aria-hidden="true">{{ row.icon }}</span>{{ row.label }}
           </span>
           <span class="value">
@@ -120,6 +130,20 @@ li:last-child {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.9rem;
+}
+
+.pick {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .icon {

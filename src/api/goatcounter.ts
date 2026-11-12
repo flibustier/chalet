@@ -73,8 +73,10 @@ export class ApiError extends Error {
 // host go one after the other, spaced out, and a 429 waits for the next window instead of
 // failing. That 429 has no CORS headers, so the browser reports it as a network error: once
 // a host has answered, a network error from it is retried the same way.
-const SPACING_MS = 550
+const SPACING_MS = 650
 const CACHE_MS = 60_000
+// Shared by every client, so the dashboard reuses what the sign-in form just fetched
+const cache = new Map<string, { at: number; value: Promise<unknown> }>()
 const queues = new Map<string, Promise<unknown>>()
 const reachable = new Set<string>()
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -105,17 +107,16 @@ const hour = (date: Date) => {
 }
 
 export function createClient(token: string) {
-  // Going back to a period or a site seen a moment ago doesn't ask GoatCounter again
-  const cache = new Map<string, { at: number; value: Promise<unknown> }>()
-
   function get<T>(base: string, path: string, params: Record<string, string | number | boolean> = {}): Promise<T> {
     const url = new URL(`${normalizeUrl(base)}/api/v0${path}`)
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value))
-    const hit = cache.get(url.href)
+    // Going back to a period or a site seen a moment ago doesn't ask GoatCounter again
+    const key = `${token}\n${url.href}`
+    const hit = cache.get(key)
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.value as Promise<T>
     const value = fetchJson<T>(url)
-    cache.set(url.href, { at: Date.now(), value })
-    value.catch(() => cache.delete(url.href))
+    cache.set(key, { at: Date.now(), value })
+    value.catch(() => cache.delete(key))
     return value
   }
 
@@ -151,7 +152,12 @@ export function createClient(token: string) {
     }
   }
 
-  const range = (r: Range) => ({ start: hour(r.start), end: hour(r.end) })
+  // A filter on some pages, by GoatCounter path id
+  const range = (r: Range, paths?: number[]) => ({
+    start: hour(r.start),
+    end: hour(r.end),
+    ...(paths?.length ? { include_paths: paths.join(',') } : {}),
+  })
 
   return {
     me: (base: string) => get<{ user: { email: string; site: number; settings?: { timezone?: string } } }>(base, '/me'),
@@ -166,13 +172,13 @@ export function createClient(token: string) {
       })
     },
 
-    total: (site: Site, r: Range) => get<TotalResponse>(site.url, '/stats/total', range(r)),
+    total: (site: Site, r: Range, paths?: number[]) => get<TotalResponse>(site.url, '/stats/total', range(r, paths)),
 
-    hits: (site: Site, r: Range, limit = 100) =>
-      get<HitsResponse>(site.url, '/stats/hits', { ...range(r), limit, daily: true }),
+    hits: (site: Site, r: Range, paths?: number[], limit = 100) =>
+      get<HitsResponse>(site.url, '/stats/hits', { ...range(r, paths), limit, daily: true }),
 
-    stats: (site: Site, page: StatPage, r: Range, limit = 100) =>
-      get<StatsResponse>(site.url, `/stats/${page}`, { ...range(r), limit }),
+    stats: (site: Site, page: StatPage, r: Range, paths?: number[], limit = 100) =>
+      get<StatsResponse>(site.url, `/stats/${page}`, { ...range(r, paths), limit }),
   }
 }
 
