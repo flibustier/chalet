@@ -7,6 +7,7 @@ import { delta, formatNumber, formatPercent, siteName } from '@/lib/format'
 import { PERIODS, periodFor, type PeriodId } from '@/lib/period'
 import { applyTheme, loadTheme, type Theme } from '@/lib/storage'
 
+import AppFooter from './AppFooter.vue'
 import ChaletLogo from './ChaletLogo.vue'
 import RankedList from './RankedList.vue'
 import ShareCards from './ShareCards.vue'
@@ -335,6 +336,7 @@ const SECTIONS = [
         <p v-else-if="!fatal && !state.error" class="loading muted">Loading…</p>
       </main>
     </div>
+    <AppFooter />
   </div>
 </template>
 
@@ -599,6 +601,7 @@ const SECTIONS = [
 
 .key line {
   stroke: var(--text-secondary);
+  opacity: 0.45;
   stroke-width: 1.5;
   stroke-dasharray: 2 4;
   stroke-linecap: round;

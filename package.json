@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "A calm, minimal dashboard for GoatCounter",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "deploy": "./scripts/deploy.sh"
   },
   "dependencies": {
     "d3-geo": "^3.1.2",
@@ -29,5 +30,10 @@
     "typescript": "^6.0.3",
     "vite": "^8.3.8",
     "vue-tsc": "^3.3.14"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flibustier/chalet.git"
+  },
+  "homepage": "https://jonathan.pl/chalet/"
 }

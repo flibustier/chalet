@@ -118,3 +118,13 @@ test('fits a phone screen without sideways scrolling', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(0)
 })
+
+test('counts nothing unless built with a GoatCounter address', async ({ page }) => {
+  const requests: string[] = []
+  page.on('request', (request) => requests.push(new URL(request.url()).host))
+  await mockGoatCounter(page)
+  await connect(page)
+  await expect(page.locator('script[data-goatcounter]')).toHaveCount(0)
+  expect(requests.every((host) => host.startsWith('localhost') || host.startsWith('stats.example.'))).toBe(true)
+  await expect(page.getByRole('link', { name: 'Source code' })).toHaveAttribute('href', 'https://github.com/flibustier/chalet')
+})

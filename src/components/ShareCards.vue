@@ -54,7 +54,8 @@ const DEVICES = {
 <style scoped>
 .shares {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  /* Up to six sources fit on one line beside the section title */
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
   gap: 0.75rem;
 }
 

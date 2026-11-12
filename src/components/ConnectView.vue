@@ -3,6 +3,7 @@ import { ref } from 'vue'
 
 import { createClient, normalizeUrl, type Connection } from '@/api/goatcounter'
 
+import AppFooter from './AppFooter.vue'
 import ChaletLogo from './ChaletLogo.vue'
 
 const emit = defineEmits<{ connect: [connection: Connection] }>()
@@ -59,6 +60,7 @@ async function submit() {
         {{ checking ? 'Checking…' : 'Open the dashboard' }}
       </button>
     </form>
+    <AppFooter />
   </main>
 </template>
 

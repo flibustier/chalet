@@ -196,6 +196,7 @@ svg {
 
 .average line {
   stroke: var(--text-secondary);
+  opacity: 0.45;
   stroke-width: 1.5;
   stroke-dasharray: 2 4;
   stroke-linecap: round;
