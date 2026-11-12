@@ -128,3 +128,73 @@ test('counts nothing unless built with a GoatCounter address', async ({ page }) 
   expect(requests.every((host) => host.startsWith('localhost') || host.startsWith('stats.example.'))).toBe(true)
   await expect(page.getByRole('link', { name: 'Source code' })).toHaveAttribute('href', 'https://github.com/flibustier/chalet')
 })
+
+const parisDay = (daysAgo: number) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date(Date.now() - daysAgo * 86400000))
+
+test('keeps the chart whole when going from yesterday to 30 days', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await mockGoatCounter(page)
+  await connect(page)
+  await page.getByRole('radio', { name: 'Yesterday' }).click()
+  await page.waitForFunction(() => !document.querySelector('.section.busy'))
+  await page.getByRole('radio', { name: '30 days' }).click()
+  await page.waitForFunction(() => !document.querySelector('.section.busy'))
+
+  const chart = page.locator('#summary svg[role=group]')
+  await expect(chart.locator('path.bar')).toHaveCount(30)
+  const { width, right } = await chart.evaluate((svg) => {
+    const bars = [...svg.querySelectorAll('path.bar')].map((bar) => (bar as SVGPathElement).getBBox())
+    return { width: Number(svg.getAttribute('width')), right: Math.max(...bars.map((b) => b.x + b.width)) }
+  })
+  expect(right).toBeGreaterThan(width * 0.9)
+  expect(errors).toEqual([])
+})
+
+test('opens a day from the chart, moves day by day, and goes back', async ({ page }) => {
+  await mockGoatCounter(page)
+  await connect(page)
+  await page.getByRole('radio', { name: '30 days' }).click()
+  await page.waitForFunction(() => !document.querySelector('.section.busy'))
+
+  // The bar of the day 9 days ago
+  const day = parisDay(9)
+  await page.locator('#summary svg[role=group] rect.pick').nth(20).click()
+  await expect(page).toHaveURL(new RegExp(`period=day&date=${day}`))
+  await expect(page.locator('#summary svg path.bar')).toHaveCount(24)
+  await expect(page.locator('.day-nav')).toContainText('compared with the day before')
+
+  await page.getByRole('button', { name: 'Previous day' }).click()
+  await expect(page).toHaveURL(new RegExp(`date=${parisDay(10)}`))
+  await page.getByRole('button', { name: 'Next day' }).click()
+  await page.getByRole('button', { name: 'Next day' }).click()
+  await expect(page).toHaveURL(new RegExp(`date=${parisDay(8)}`))
+
+  // The arrows leaf through days in place: one step back returns to the 30 days
+  await page.goBack()
+  await expect(page).toHaveURL(/period=30d/)
+  await expect(page.locator('#summary svg path.bar')).toHaveCount(30)
+})
+
+test('has no next day after today', async ({ page }) => {
+  await mockGoatCounter(page)
+  await connect(page)
+  await page.getByRole('radio', { name: 'Today' }).click()
+  await expect(page.getByRole('button', { name: 'Next day' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Previous day' }).click()
+  await expect(page.getByRole('radio', { name: 'Yesterday' })).toHaveAttribute('aria-checked', 'true')
+})
+
+test('picks a day in the calendar', async ({ page }) => {
+  await mockGoatCounter(page)
+  await connect(page)
+  const day = parisDay(40)
+  await page.locator('.calendar-input').evaluate((input: HTMLInputElement, value) => {
+    input.value = value
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  }, day)
+  await expect(page).toHaveURL(new RegExp(`period=day&date=${day}`))
+  await expect(page.getByRole('radio', { name: 'Pick a day' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('#summary svg path.bar')).toHaveCount(24)
+})

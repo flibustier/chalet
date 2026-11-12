@@ -41,6 +41,19 @@ const asDate = (key: string) => new Date(`${key.length === 7 ? `${key}-01` : key
 /** Label of a bar: an hour ("14:00"), a day ("Mon 3 Nov") or a month ("Nov 2026"). */
 export function bucketLabel(key: string, bucket: Bucket, short = false) {
   if (bucket === 'hour') return `${key.padStart(2, '0')}:00`
-  if (bucket === 'month') return monthFormat.format(asDate(key))
-  return (short ? shortDayFormat : dayFormat).format(asDate(key))
+  const date = asDate(key)
+  if (Number.isNaN(date.getTime())) return key // never break a render over a label
+  if (bucket === 'month') return monthFormat.format(date)
+  return (short ? shortDayFormat : dayFormat).format(date)
 }
+
+const longDayFormat = new Intl.DateTimeFormat('en', {
+  timeZone: 'UTC',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+})
+
+/** "Monday, November 9, 2026" for a YYYY-MM-DD day */
+export const longDay = (key: string) => longDayFormat.format(asDate(key))

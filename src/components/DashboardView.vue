@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import { createClient, type Connection, type Site } from '@/api/goatcounter'
 import { useDashboard, type SectionKey } from '@/lib/dashboard'
-import { delta, formatNumber, formatPercent, siteName } from '@/lib/format'
-import { PERIODS, periodFor, type PeriodId } from '@/lib/period'
+import { delta, formatNumber, formatPercent, longDay, siteName } from '@/lib/format'
+import { isDateKey, PERIODS, periodFor, periodForDay, shiftKey, todayKey, type PeriodId } from '@/lib/period'
 import { applyTheme, loadTheme, type Theme } from '@/lib/storage'
 
 import AppFooter from './AppFooter.vue'
@@ -26,17 +26,58 @@ const sites = ref<Site[]>([])
 const timeZone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone)
 const fatal = ref('')
 
-const params = new URLSearchParams(location.search)
-const siteId = ref(Number(params.get('site')) || 0)
-const periodId = ref<PeriodId>(PERIODS.some((p) => p.id === params.get('period')) ? (params.get('period') as PeriodId) : '7d')
+const siteId = ref(0)
+const periodId = ref<PeriodId>('7d')
+// The day shown when the period is a single day other than today or yesterday
+const dayDate = ref<string | null>(null)
+// A page (GoatCounter path id) the whole dashboard is narrowed to, 0 for all pages
+const pageId = ref(0)
 const asTable = ref(false)
 const countriesAsMap = ref(false)
-// A page (GoatCounter path id) the whole dashboard is narrowed to, 0 for all pages
-const pageId = ref(Number(params.get('page')) || 0)
+
+// The address holds the view, so it can be bookmarked and the browser's back button works
+function readAddress() {
+  const params = new URLSearchParams(location.search)
+  siteId.value = Number(params.get('site')) || siteId.value
+  const period = params.get('period')
+  const date = params.get('date')
+  periodId.value = period === 'day' && isDateKey(date) ? 'day' : PERIODS.some((p) => p.id === period) ? (period as PeriodId) : '7d'
+  dayDate.value = periodId.value === 'day' ? date : null
+  pageId.value = Number(params.get('page')) || 0
+}
+readAddress()
 
 const site = computed(() => sites.value.find((s) => s.id === siteId.value) ?? sites.value[0])
-const period = computed(() => periodFor(periodId.value, timeZone.value))
-const periodInfo = computed(() => PERIODS.find((p) => p.id === periodId.value)!)
+const period = computed(() =>
+  periodId.value === 'day' && dayDate.value
+    ? periodForDay(dayDate.value, timeZone.value)
+    : periodFor(periodId.value, timeZone.value),
+)
+const periodInfo = computed(() => PERIODS.find((p) => p.id === periodId.value))
+const today = computed(() => todayKey(timeZone.value))
+
+/**
+ * Show one day, hour by hour: from a bar of the chart, the arrows or the calendar. The arrows
+ * leaf through days in place, so one "back" returns to where the day was opened from.
+ */
+function goToDay(key: string, { leaf = false } = {}) {
+  if (leaf) replaceNext = true
+  const day = periodForDay(key, timeZone.value)
+  periodId.value = day.id
+  dayDate.value = day.id === 'day' ? (day.date ?? null) : null
+}
+
+const calendar = useTemplateRef('calendar')
+function openCalendar() {
+  const input = calendar.value
+  if (!input) return
+  input.value = period.value.date ?? today.value
+  try {
+    input.showPicker()
+  } catch {
+    input.focus()
+  }
+}
 
 async function start() {
   fatal.value = ''
@@ -52,17 +93,36 @@ async function start() {
   }
 }
 
+// Each new view is a step in the browser's history; going back or forward reads the address
+let fromHistory = true
+let replaceNext = false
+const onPopState = () => {
+  fromHistory = true
+  readAddress()
+}
+
 function refresh() {
   if (!site.value) return
   const query = new URLSearchParams({ site: String(site.value.id), period: periodId.value })
+  if (periodId.value === 'day' && dayDate.value) query.set('date', dayDate.value)
   if (pageId.value) query.set('page', String(pageId.value))
-  history.replaceState(null, '', `?${query}`)
+  const address = `?${query}`
+  if (address !== location.search) {
+    if (fromHistory || replaceNext) history.replaceState(null, '', address)
+    else history.pushState(null, '', address)
+  }
+  fromHistory = false
+  replaceNext = false
   document.title = `${siteName(site.value.name)} · Chalet`
   load(site.value, period.value, timeZone.value, pageId.value || undefined)
 }
 
-onMounted(start)
-watch([site, periodId, pageId], refresh)
+onMounted(() => {
+  window.addEventListener('popstate', onPopState)
+  start()
+})
+onBeforeUnmount(() => window.removeEventListener('popstate', onPopState))
+watch([site, periodId, dayDate, pageId], refresh)
 
 const pageLabel = computed(() => {
   const rows = [...(data.value?.pages ?? []), ...(data.value?.eventsList ?? [])]
@@ -89,7 +149,8 @@ const average = computed(() => {
   const points = data.value?.series ?? []
   return points.length ? data.value!.visits / points.length : 0
 })
-const averageLabel = computed(() => (period.value.bucket === 'hour' ? 'Per hour' : period.value.bucket === 'day' ? 'Per day' : 'Per month'))
+const bucket = computed(() => data.value?.bucket ?? period.value.bucket)
+const averageLabel = computed(() => (bucket.value === 'hour' ? 'Per hour' : bucket.value === 'day' ? 'Per day' : 'Per month'))
 
 const sources = computed(() => {
   const s = data.value?.sources
@@ -165,7 +226,24 @@ const SECTIONS = [
         <div v-if="site" class="title">
           <div>
             <h1>{{ siteName(site.name) }}</h1>
-            <p class="muted">{{ periodInfo.label }}, compared with {{ periodInfo.previous }}</p>
+            <p v-if="period.bucket === 'hour' && period.date" class="day-nav">
+              <button type="button" class="arrow" aria-label="Previous day" title="Previous day" @click="goToDay(shiftKey(period.date, -1), { leaf: true })">‹</button>
+              <span>
+                <strong>{{ period.id === 'today' ? 'Today' : period.id === 'yesterday' ? 'Yesterday' : longDay(period.date) }}</strong>
+                <span class="muted">, compared with the day before</span>
+              </span>
+              <button
+                type="button"
+                class="arrow"
+                aria-label="Next day"
+                title="Next day"
+                :disabled="period.date >= today"
+                @click="goToDay(shiftKey(period.date, 1), { leaf: true })"
+              >
+                ›
+              </button>
+            </p>
+            <p v-else class="muted">{{ periodInfo?.label }}, compared with {{ periodInfo?.previous }}</p>
           </div>
           <div class="periods" role="radiogroup" aria-label="Period">
             <button
@@ -179,6 +257,30 @@ const SECTIONS = [
             >
               {{ p.label }}
             </button>
+            <button
+              type="button"
+              role="radio"
+              class="calendar"
+              :aria-checked="periodId === 'day'"
+              :class="{ selected: periodId === 'day' }"
+              aria-label="Pick a day"
+              title="Pick a day"
+              @click="openCalendar"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="2" y="3" width="12" height="11" rx="2" />
+                <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" />
+              </svg>
+            </button>
+            <input
+              ref="calendar"
+              class="calendar-input"
+              type="date"
+              tabindex="-1"
+              aria-hidden="true"
+              :max="today"
+              @change="($event.target as HTMLInputElement).value && goToDay(($event.target as HTMLInputElement).value)"
+            />
           </div>
         </div>
 
@@ -223,13 +325,19 @@ const SECTIONS = [
                   <span>Visits</span>
                   <span v-if="average > 0 && !asTable" class="key">
                     <svg width="20" height="6" aria-hidden="true"><line x1="1" x2="19" y1="3" y2="3" /></svg>
-                    avg {{ formatNumber(Math.round(average)) }} per {{ period.bucket }}
+                    avg {{ formatNumber(Math.round(average)) }} per {{ bucket }}
                   </span>
                   <button class="link" type="button" :aria-pressed="asTable" @click="asTable = !asTable">
                     {{ asTable ? 'Chart' : 'Table' }}
                   </button>
                 </div>
-                <VisitsChart :points="data.series" :bucket="period.bucket" :as-table="asTable" />
+                <VisitsChart
+                  :points="data.series"
+                  :bucket="data.bucket"
+                  :as-table="asTable"
+                  :selectable="data.bucket === 'day'"
+                  @select="goToDay"
+                />
               </div>
             </div>
           </section>
@@ -467,6 +575,60 @@ const SECTIONS = [
 
 .periods button:hover {
   color: var(--text);
+}
+
+.periods .calendar {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+}
+
+.calendar svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* The native date picker opens from the calendar button; the field itself stays out of sight */
+.calendar-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.periods {
+  position: relative;
+}
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.arrow {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text);
+}
+
+.arrow:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .periods button.selected {

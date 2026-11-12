@@ -1,6 +1,6 @@
 import type { Range } from '@/api/goatcounter'
 
-export type PeriodId = 'today' | 'yesterday' | '7d' | '30d' | '90d' | '12m'
+export type PeriodId = 'today' | 'yesterday' | 'day' | '7d' | '30d' | '90d' | '12m'
 export type Bucket = 'hour' | 'day' | 'month'
 
 export const PERIODS: { id: PeriodId; label: string; previous: string }[] = [
@@ -17,6 +17,8 @@ export interface Period {
   range: Range
   previous: Range
   bucket: Bucket
+  /** The day shown, YYYY-MM-DD in the zone, for the views of a single day */
+  date?: string
 }
 
 // GoatCounter returns days and hours in the account's time zone, so periods start at that
@@ -64,6 +66,37 @@ const shift = (date: ZonedDate, days = 0, months = 0): ZonedDate => {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }
 }
 
+export const dateKey = ({ year, month, day }: ZonedDate) =>
+  `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+export const isDateKey = (key: string | null): key is string => !!key && /^\d{4}-\d{2}-\d{2}$/.test(key)
+
+const parseKey = (key: string): ZonedDate => {
+  const [year, month, day] = key.split('-').map(Number)
+  return { year: year!, month: month!, day: day! }
+}
+
+/** The day before or after, as YYYY-MM-DD */
+export const shiftKey = (key: string, days: number) => dateKey(shift(parseKey(key), days))
+
+export const todayKey = (timeZone: string, now = new Date()) => dateKey(zonedToday(timeZone, now))
+
+/** One day, hour by hour. Today and yesterday keep their own names. */
+export function periodForDay(key: string, timeZone: string, now = new Date()): Period {
+  const today = todayKey(timeZone, now)
+  if (key >= today) return periodFor('today', timeZone, now)
+  if (key === shiftKey(today, -1)) return periodFor('yesterday', timeZone, now)
+  const date = parseKey(key)
+  const at = (d: ZonedDate) => zonedMidnight(d, timeZone)
+  return {
+    id: 'day',
+    bucket: 'hour',
+    date: key,
+    range: { start: at(date), end: at(shift(date, 1)) },
+    previous: { start: at(shift(date, -1)), end: at(date) },
+  }
+}
+
 export function periodFor(id: PeriodId, timeZone: string, now = new Date()): Period {
   const today = zonedToday(timeZone, now)
   const at = (date: ZonedDate) => zonedMidnight(date, timeZone)
@@ -72,15 +105,23 @@ export function periodFor(id: PeriodId, timeZone: string, now = new Date()): Per
   const span = (from: ZonedDate, to: ZonedDate): Range => ({ start: at(from), end: at(to) })
 
   switch (id) {
+    case 'day':
     case 'today':
       return {
-        id,
+        id: 'today',
         bucket: 'hour',
+        date: dateKey(today),
         range: { start: at(today), end: endOfHour },
         previous: { start: at(shift(today, -1)), end: new Date(endOfHour.getTime() - 86400000) },
       }
     case 'yesterday':
-      return { id, bucket: 'hour', range: span(shift(today, -1), today), previous: span(shift(today, -2), shift(today, -1)) }
+      return {
+        id,
+        bucket: 'hour',
+        date: dateKey(shift(today, -1)),
+        range: span(shift(today, -1), today),
+        previous: span(shift(today, -2), shift(today, -1)),
+      }
     case '12m': {
       const first = { ...today, day: 1 }
       const start = shift(first, 0, -11)
@@ -111,7 +152,7 @@ export function daysOf(range: Range, timeZone: string): string[] {
   for (;;) {
     const start = zonedMidnight(date, timeZone)
     if (start >= range.end) break
-    out.push(`${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`)
+    out.push(dateKey(date))
     date = shift(date, 1)
   }
   return out

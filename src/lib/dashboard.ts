@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 
 import type { Client, DayStat, PathHits, Range, Site, StatEntry, StatPage } from '@/api/goatcounter'
-import { daysOf, type Period } from './period'
+import { daysOf, type Bucket, type Period } from './period'
 import { flag, siteName } from './format'
 import { isInternal, sourceTotals, type Source } from './sources'
 
@@ -23,6 +23,8 @@ export interface DashboardData {
   previousVisits: number
   events: number
   series: Point[]
+  /** The bucket the series was computed for: it changes with the period, not before the data */
+  bucket: Bucket
   pages: Row[]
   eventsList: Row[]
   referrers: Row[]
@@ -91,6 +93,7 @@ export function useDashboard(client: Client) {
           previousVisits: 0,
           events: 0,
           series: [],
+          bucket: 'day',
           pages: [],
           eventsList: [],
           referrers: [],
@@ -120,6 +123,7 @@ export function useDashboard(client: Client) {
         previousVisits: sum(previousTotal.stats),
         events: total.total_events,
         series: series(total.stats, period, timeZone),
+        bucket: period.bucket,
       })
 
       const [hits, previousHits] = [

@@ -29,6 +29,8 @@ systems, events and campaigns, each compared with the previous period.
 - **All your sites in one place.** One API key opens every site of your account.
 - **Pick a page** and the whole dashboard narrows to it: where its visitors come from, their
   countries, their devices.
+- **Any day, hour by hour**: click a day in the chart, pick one in the calendar, then step
+  to the day before or after. The browser's back button returns to where you were.
 - **Countries as a list or on a map**, and the visits chart with its average.
 - **Light and dark**, following your device or your choice. Works on a phone.
 

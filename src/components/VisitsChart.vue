@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import type { Point } from '@/lib/dashboard'
 import { bucketLabel, formatNumber } from '@/lib/format'
 import type { Bucket } from '@/lib/period'
 
-const props = defineProps<{ points: Point[]; bucket: Bucket; asTable: boolean }>()
+const props = defineProps<{ points: Point[]; bucket: Bucket; asTable: boolean; selectable?: boolean }>()
+// A day's bar opens that day, hour by hour
+const emit = defineEmits<{ select: [key: string] }>()
 
 const HEIGHT = 220
 const AXIS = 28 // room for the x labels
@@ -16,6 +18,11 @@ const GAP = 2
 const box = useTemplateRef('box')
 const width = ref(640)
 const active = ref<number | null>(null)
+// New figures, new bars: the bar picked before means nothing in them
+watch(
+  () => props.points,
+  () => (active.value = null),
+)
 
 let observer: ResizeObserver | undefined
 onMounted(() => {
@@ -83,7 +90,10 @@ function onKey(event: KeyboardEvent) {
   else if (event.key === 'ArrowLeft') active.value = Math.max(0, (active.value ?? last + 1) - 1)
   else if (event.key === 'Home') active.value = 0
   else if (event.key === 'End') active.value = last
-  else return
+  else if (event.key === 'Enter' && props.selectable && active.value !== null) {
+    const point = props.points[active.value]
+    if (point) emit('select', point.key)
+  } else return
   event.preventDefault()
 }
 </script>
@@ -113,7 +123,7 @@ function onKey(event: KeyboardEvent) {
         :height="HEIGHT"
         :viewBox="`0 0 ${width} ${HEIGHT}`"
         role="group"
-        :aria-label="`Visits over the period, ${averageText} per ${bucket}. Use the arrow keys to read each bar.`"
+        :aria-label="`Visits over the period, ${averageText} per ${bucket}. Use the arrow keys to read each bar${selectable ? ', Enter to open that day' : ''}.`"
         tabindex="0"
         @keydown="onKey"
         @blur="active = null"
@@ -159,12 +169,15 @@ function onKey(event: KeyboardEvent) {
           :width="band"
           :height="plotHeight"
           fill="transparent"
+          :class="{ pick: selectable }"
           @pointerenter="active = index"
+          @click="selectable && emit('select', point.key)"
         />
       </svg>
       <div v-if="tooltip" class="tooltip" :style="{ left: `${tooltip.left}px`, top: `${tooltip.top}px` }" aria-live="polite">
         <strong>{{ formatNumber(tooltip.point.value) }}</strong>
         <span>{{ tooltip.point.value === 1 ? 'visit' : 'visits' }} · {{ label(tooltip.point) }}</span>
+        <span v-if="selectable" class="hint">Click to see its hours</span>
       </div>
     </template>
   </div>
@@ -180,6 +193,11 @@ function onKey(event: KeyboardEvent) {
 svg {
   display: block;
   overflow: visible;
+}
+
+/* The focus ring is for the keyboard, not for a click on a bar */
+svg:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .grid line {
@@ -224,6 +242,15 @@ svg {
   flex-direction: column;
   white-space: nowrap;
   font-size: 0.8rem;
+}
+
+.pick {
+  cursor: pointer;
+}
+
+.tooltip .hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 .tooltip strong {
