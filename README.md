@@ -14,7 +14,7 @@ systems, events and campaigns, each compared with the previous period.
 
 ## Use it
 
-Chalet runs at **https://jonathan.pl/chalet/**, or on your own host (see below).
+Chalet runs at **https://flibustier.github.io/chalet/**, or on your own host (see below).
 
 1. In GoatCounter, open *Settings → API* and create a key with the **Read statistics**
    permission only.
@@ -23,7 +23,7 @@ Chalet runs at **https://jonathan.pl/chalet/**, or on your own host (see below).
 The key is kept in your browser (local storage) and is only ever sent to your GoatCounter.
 Chalet has no server and makes no third-party requests.
 
-The copy at jonathan.pl/chalet counts its own visits with GoatCounter: the page address and
+The copy at flibustier.github.io/chalet counts its own visits with GoatCounter: the page address and
 a fixed title only, never which sites you look at. A copy you build yourself counts nothing
 unless you ask it to (see below).
 
