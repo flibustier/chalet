@@ -71,8 +71,9 @@ export class ApiError extends Error {
 // GoatCounter allows 4 requests per second per key, and from a browser each call costs two:
 // the key travels in a header, so a CORS preflight goes first, and it counts too. Calls to a
 // host go one after the other, spaced out, and a 429 waits for the next window instead of
-// failing. That 429 has no CORS headers, so the browser reports it as a network error: once
-// a host has answered, a network error from it is retried the same way.
+// failing. When the preflight itself gets the 429, the browser sees a failed preflight and
+// reports a network error, without a status: once a host has answered, a network error from
+// it is retried the same way. (Retry-After isn't exposed to browsers, so the wait is fixed.)
 const SPACING_MS = 650
 const CACHE_MS = 60_000
 // Shared by every client, so the dashboard reuses what the sign-in form just fetched
