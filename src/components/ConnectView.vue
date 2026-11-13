@@ -52,8 +52,9 @@ async function submit() {
         <input v-model="token" class="input" type="password" required autocomplete="off" spellcheck="false" />
       </label>
       <p class="hint muted">
-        Create a key in GoatCounter under <em>Settings → API</em>, with the <em>Read statistics</em> permission only.
-        It stays in this browser and is only ever sent to your GoatCounter.
+        In GoatCounter, click your name at the top, then <em>API</em>. Create a key with <em>Read statistics</em>,
+        and <em>Read sites</em> to see all your sites. It stays in this browser and is only ever sent to your
+        GoatCounter.
       </p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button class="button primary" type="submit" :disabled="checking">

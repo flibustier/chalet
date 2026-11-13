@@ -176,8 +176,17 @@ export function createClient(token: string, transport: Transport = network) {
     me: (base: string) => get<{ user: { email: string; site: number; settings?: { timezone?: string } } }>(base, '/me'),
 
     async sites(base: string): Promise<Site[]> {
-      const { sites } = await get<{ sites: { id: number; cname: string | null; code: string }[] }>(base, '/sites')
       const { protocol, host } = new URL(normalizeUrl(base))
+      let sites: { id: number; cname: string | null; code: string }[]
+      try {
+        ;({ sites } = await get<{ sites: typeof sites }>(base, '/sites'))
+      } catch (error) {
+        // Listing the sites takes the "Read sites" permission. Without it, the key still reads
+        // the statistics of the site it was made on: show that one.
+        if (!(error instanceof ApiError && error.status === 403)) throw error
+        const { user } = await get<{ user: { site: number } }>(base, '/me')
+        return [{ id: user.site, url: `${protocol}//${host}`, name: host }]
+      }
       return sites.map((site) => {
         // A self-hosted site lives on its cname; on goatcounter.com, on its code's subdomain
         const domain = site.cname || (host.endsWith('goatcounter.com') ? `${site.code}.goatcounter.com` : host)

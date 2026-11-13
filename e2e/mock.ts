@@ -34,6 +34,8 @@ export interface MockOptions {
   /** Answer 429 to the first call of this endpoint, like GoatCounter over its rate limit */
   rateLimitOnce?: string
   token?: string
+  /** A key without the "Read sites" permission: GoatCounter refuses to list the sites */
+  sitesForbidden?: boolean
 }
 
 export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
@@ -54,6 +56,7 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
       limited = true
       return json({ error: 'rate limited' }, 429)
     }
+    if (options.sitesForbidden && path === '/sites') return json({ error: 'no permission' }, 403)
     const start = new Date(url.searchParams.get('start') ?? Date.now() - 7 * 86400000)
     const end = new Date(url.searchParams.get('end') ?? Date.now())
     const stats = days(start, end, site).map((day) =>

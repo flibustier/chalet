@@ -25,6 +25,16 @@ test('shows every section of the first site', async ({ page }) => {
   await expect(page).toHaveURL(/\?site=1&period=7d$/)
 })
 
+test('opens the key\'s own site when the key cannot list the sites', async ({ page }) => {
+  // A key with "Read statistics" only: GoatCounter answers 403 to /sites
+  await mockGoatCounter(page, { sitesForbidden: true })
+  await connect(page)
+  await expect(page.locator('h1')).toHaveText('example.com')
+  await expect(page.locator('select')).toHaveCount(0)
+  await expect(page.locator('#pages li').first()).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('leaves the site itself out of referrers and sources', async ({ page }) => {
   await mockGoatCounter(page)
   await connect(page)
