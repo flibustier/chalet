@@ -47,8 +47,9 @@ systems, events and campaigns, each compared with the previous period.
 
 Chalet runs at **https://flibustier.github.io/chalet/**, or on your own host (see below).
 
-1. In GoatCounter, open *Settings → API* and create a key with the **Read statistics**
-   permission only.
+1. In GoatCounter, click your name at the top right (the start of your email address), then
+   *API*. Create a key with the **Read statistics** permission, and **Read sites** to see
+   every site of your account. Nothing else: Chalet only reads.
 2. Open Chalet, enter your GoatCounter address (for example `stats.example.com`) and the key.
 
 To look around first, [the demo](https://flibustier.github.io/chalet/?demo) shows three
@@ -67,6 +68,17 @@ so a dashboard takes a few seconds to fill in; going back to a period seen in th
 minute is instant.
 
 ## Host it yourself
+
+**[Self-hosting GoatCounter and Chalet](docs/self-hosting.md)** walks through the whole stack
+on your own server, GoatCounter included, with Docker Compose or Portainer.
+
+Chalet alone is a container image that serves the app on port 8080:
+
+```sh
+docker run -d -p 8080:8080 ghcr.io/flibustier/chalet
+```
+
+Or build it and serve the static files:
 
 ```sh
 npm ci
