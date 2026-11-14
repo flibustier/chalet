@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 
 import type { Row } from '@/lib/dashboard'
-import { delta, formatNumber, formatPercent } from '@/lib/format'
+import { delta, formatPercent, numberFormat } from '@/lib/format'
 
 const props = withDefaults(
   defineProps<{ rows: Row[]; heading: string; showTrend?: boolean; empty?: string; limit?: number; selectable?: boolean }>(),
@@ -15,6 +15,7 @@ const expanded = ref(false)
 
 const total = computed(() => props.rows.reduce((sum, row) => sum + row.count, 0))
 const max = computed(() => Math.max(1, ...props.rows.map((row) => row.count)))
+const format = computed(() => numberFormat(max.value))
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -62,7 +63,7 @@ const shown = computed(() => (expanded.value ? filtered.value : filtered.value.s
                 <template v-else>new</template>
               </span>
             </template>
-            <strong>{{ formatNumber(row.count) }}</strong>
+            <strong>{{ format(row.count) }}</strong>
             <span class="share muted">{{ formatPercent(row.count / total) }}</span>
           </span>
         </div>

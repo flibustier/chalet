@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { formatNumber, formatPercent } from '@/lib/format'
+import { formatPercent, numberFormat } from '@/lib/format'
 
 export interface Share {
   key: string
@@ -15,6 +15,7 @@ const props = defineProps<{ items: Share[] }>()
 
 const total = computed(() => props.items.reduce((sum, item) => sum + item.value, 0))
 const share = (item: Share) => (total.value ? item.value / total.value : 0)
+const format = computed(() => numberFormat(Math.max(0, ...props.items.map((item) => item.value))))
 
 // Outline sizes of each device drawing, in a 64×52 box
 const DEVICES = {
@@ -46,7 +47,7 @@ const DEVICES = {
       </svg>
       <span class="label muted">{{ item.label }}</span>
       <strong class="percent">{{ formatPercent(share(item)) }}</strong>
-      <span class="count muted">{{ formatNumber(item.value) }} {{ item.value === 1 ? 'visit' : 'visits' }}</span>
+      <span class="count muted">{{ format(item.value) }} {{ item.value === 1 ? 'visit' : 'visits' }}</span>
     </div>
   </div>
 </template>

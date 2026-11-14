@@ -35,7 +35,6 @@ interface DemoSite {
   sizes: Entry[]
   browsers: Entry[]
   systems: Entry[]
-  campaigns: Entry[]
 }
 
 const SITES: DemoSite[] = [
@@ -87,7 +86,6 @@ const SITES: DemoSite[] = [
     sizes: [['phone', '', 0.49], ['tablet', '', 0.07], ['desktop', '', 0.37], ['desktophd', '', 0.07]],
     browsers: [['Firefox', 'Firefox', 0.34], ['Chrome', 'Chrome', 0.31], ['Safari', 'Safari', 0.27], ['Edge', 'Edge', 0.08]],
     systems: [['iOS', 'iOS', 0.28], ['Android', 'Android', 0.24], ['macOS', 'macOS', 0.2], ['Windows', 'Windows', 0.18], ['Linux', 'Linux', 0.1]],
-    campaigns: [['trail-club', 'trail-club', 0.02]],
   },
   {
     id: 2,
@@ -131,7 +129,6 @@ const SITES: DemoSite[] = [
     sizes: [['phone', '', 0.62], ['tablet', '', 0.08], ['desktop', '', 0.25], ['desktophd', '', 0.05]],
     browsers: [['Safari', 'Safari', 0.41], ['Chrome', 'Chrome', 0.38], ['Firefox', 'Firefox', 0.12], ['Samsung Internet', 'Samsung Internet', 0.05], ['Edge', 'Edge', 0.04]],
     systems: [['iOS', 'iOS', 0.42], ['Android', 'Android', 0.27], ['Windows', 'Windows', 0.17], ['macOS', 'macOS', 0.13], ['Linux', 'Linux', 0.01]],
-    campaigns: [['winter-boxes', 'winter-boxes', 0.05], ['cheese-club', 'cheese-club', 0.02]],
   },
   {
     id: 3,
@@ -169,7 +166,6 @@ const SITES: DemoSite[] = [
     sizes: [['phone', '', 0.24], ['tablet', '', 0.03], ['desktop', '', 0.48], ['desktophd', '', 0.25]],
     browsers: [['Firefox', 'Firefox', 0.43], ['Chrome', 'Chrome', 0.33], ['Safari', 'Safari', 0.17], ['Brave', 'Brave', 0.04], ['Edge', 'Edge', 0.03]],
     systems: [['Linux', 'Linux', 0.31], ['macOS', 'macOS', 0.3], ['Windows', 'Windows', 0.19], ['iOS', 'iOS', 0.12], ['Android', 'Android', 0.08]],
-    campaigns: [],
   },
 ]
 
@@ -295,10 +291,8 @@ function days({ site, first, last, pages, now }: Query) {
 
 /**
  * A breakdown (referrers, countries…): each page brings its own mix, the totals add them up.
- * `whole`: the entries share all the visits between them; otherwise (campaigns) each share
- * is of all visits, and most visits have none.
  */
-function breakdown(query: Query, entries: Entry[], whole: boolean) {
+function breakdown(query: Query, entries: Entry[]) {
   const totals = pageTotals(query)
   const counts = entries.map(() => 0)
   query.pages.forEach((pageIndex, i) => {
@@ -306,7 +300,7 @@ function breakdown(query: Query, entries: Entry[], whole: boolean) {
     const weights = entries.map(
       ([id, , share], e) => share * (0.7 + 0.6 * hash(query.site.id, pageIndex, e)) * (page.tilt?.[id] ?? 1),
     )
-    const sum = whole ? weights.reduce((a, b) => a + b, 0) : 1
+    const sum = weights.reduce((a, b) => a + b, 0)
     weights.forEach((weight, e) => (counts[e]! += (totals[i]! * weight) / sum))
   })
   return entries
@@ -350,9 +344,11 @@ export function answer(url: URL, now = Date.now()): Response {
     return json({ hits: hits.slice(0, limit), more: hits.length > limit })
   }
   const page = path.replace('/stats/', '')
-  const entries = { toprefs: site.toprefs, locations: site.locations, languages: site.languages, sizes: site.sizes, browsers: site.browsers, systems: site.systems, campaigns: site.campaigns }[page]
+  // Campaigns are the referrers with the campaign scheme, so they match the Sources figure
+  const entries = { toprefs: site.toprefs, locations: site.locations, languages: site.languages, sizes: site.sizes, browsers: site.browsers, systems: site.systems, campaigns: site.toprefs }[page]
   if (!entries) return json({ error: 'not found' }, 404)
   // Referrers and campaigns come from visits to pages; an event only shows its own
-  const stats = breakdown(query(visits.length || !only ? visits : events), entries, page !== 'campaigns')
+  let stats = breakdown(query(visits.length || !only ? visits : events), entries)
+  if (page === 'campaigns') stats = stats.filter((entry) => entry.ref_scheme === 'c').map(({ id, name, count }) => ({ id, name, count }))
   return json({ stats: stats.slice(0, limit), more: stats.length > limit })
 }

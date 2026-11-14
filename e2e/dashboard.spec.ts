@@ -90,6 +90,28 @@ test('draws the average as a dotted line', async ({ page }) => {
   await expect(page.locator('#summary .key')).toHaveText(/avg \d+ per day/)
 })
 
+test('keeps a decimal for an average under one, and whole visits on the axis', async ({ page }) => {
+  await mockGoatCounter(page, { sparse: true })
+  await connect(page)
+  // 3 or 4 visits over 7 days
+  await expect(page.locator('#summary .tile').nth(1).locator('strong')).toHaveText(/^0\.\d$/)
+  await expect(page.locator('#summary .key')).toHaveText(/avg 0\.\d per day/)
+  await expect(page.locator('#summary .grid text')).toHaveText(['0', '1'])
+})
+
+test('keeps one number style down a list', async ({ page }) => {
+  await mockGoatCounter(page, {
+    locations: [
+      { id: 'FR', name: 'France', count: 12000 },
+      { id: 'DE', name: 'Germany', count: 8052 },
+      { id: 'BE', name: 'Belgium', count: 300 },
+    ],
+  })
+  await connect(page)
+  // 8,052 in full would look bigger than 12K
+  await expect(page.locator('#countries li strong')).toHaveText(['12K', '8.1K', '300'])
+})
+
 test('narrows everything to one page, then back to all pages', async ({ page }) => {
   const calls = await mockGoatCounter(page)
   await connect(page)
@@ -99,6 +121,8 @@ test('narrows everything to one page, then back to all pages', async ({ page }) 
   await expect(page).toHaveURL(/page=2/)
   await expect(page.locator('#pages li')).toHaveCount(1)
   await page.waitForFunction(() => !document.querySelector('.section.busy'))
+  // A page holds no events: no tile to say 0
+  await expect(page.locator('#summary .tile')).toHaveCount(2)
   const filtered = calls.filter((call) => call.params.get('include_paths') === '2').map((call) => call.path)
   expect(filtered).toEqual(expect.arrayContaining(['/stats/total', '/stats/hits', '/stats/toprefs', '/stats/locations', '/stats/browsers']))
 
@@ -106,6 +130,7 @@ test('narrows everything to one page, then back to all pages', async ({ page }) 
   await expect(page.locator('.filter')).toHaveCount(0)
   await expect(page).not.toHaveURL(/page=/)
   await expect(page.locator('#pages li')).toHaveCount(3)
+  await expect(page.locator('#summary .tile')).toHaveCount(3)
 })
 
 test('shows the countries on a map when asked', async ({ page }) => {
@@ -127,6 +152,23 @@ test('fits a phone screen without sideways scrolling', async ({ page }) => {
   await connect(page)
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(0)
+
+  // Two tiles a row: the visits take the first row, the other two share the second
+  const [visits, average, events] = await page.locator('#summary .tile').evaluateAll((tiles) =>
+    tiles.map((tile) => tile.getBoundingClientRect().toJSON() as DOMRect),
+  )
+  expect(visits!.width).toBeGreaterThan(average!.width * 1.8)
+  expect(average!.top).toBe(events!.top)
+})
+
+test('skips to the figures from the keyboard', async ({ page }) => {
+  await mockGoatCounter(page)
+  await connect(page)
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('link', { name: 'Skip to the figures' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Tab')
+  expect(await page.evaluate(() => !!document.activeElement?.closest('main'))).toBe(true)
 })
 
 test('counts nothing unless built with a GoatCounter address', async ({ page }) => {

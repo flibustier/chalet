@@ -33,6 +33,17 @@ test('the demo shows made-up figures without asking anything of the network', as
   expect(errors).toEqual([])
 })
 
+test('the demo\'s campaigns add up to the campaigns of the sources', async ({ page }) => {
+  await page.goto('/?demo&site=2&period=7d')
+  await page.locator('#campaigns').waitFor()
+  await idle(page)
+  const source = await page.locator('#sources .share').filter({ hasText: 'Campaigns' }).locator('.count').innerText()
+  const rows = await page.locator('#campaigns li strong').allInnerTexts()
+  const number = (text: string) => Number(text.replace(/[^\d]/g, ''))
+  expect(rows.length).toBe(2)
+  expect(rows.reduce((sum, text) => sum + number(text), 0)).toBe(number(source))
+})
+
 test('a day of the demo adds up to its bar, and a page narrows it', async ({ page }) => {
   await page.goto('/?demo&period=30d')
   await page.locator('#campaigns').waitFor()

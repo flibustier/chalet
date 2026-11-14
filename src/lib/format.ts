@@ -6,6 +6,23 @@ const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFracti
 /** 1,284 in full under 10,000, then 12.9K */
 export const formatNumber = (n: number) => (Math.abs(n) < 10000 ? whole.format(n) : compact.format(n))
 
+/** Every digit, for a table: 12,345 */
+export const formatExact = (n: number) => whole.format(n)
+
+/**
+ * For numbers read side by side (a list, an axis): one style for all, set by the largest.
+ * Otherwise 8,052 sits under 11.4K and looks the bigger of the two.
+ */
+export const numberFormat = (largest: number) => (Math.abs(largest) < 10000 ? whole.format : compact.format)
+
+const tenths = new Intl.NumberFormat('en', { maximumFractionDigits: 1 })
+
+/** An average keeps a decimal while it is small: 5 visits over 24 hours are 0.2 an hour, not 0 */
+export function formatAverage(n: number) {
+  if (n <= 0 || n >= 10) return formatNumber(Math.round(n))
+  return n < 0.05 ? '<0.1' : tenths.format(n)
+}
+
 export const formatPercent = (share: number) => {
   const percent = share * 100
   if (percent > 0 && percent < 1) return '<1%'

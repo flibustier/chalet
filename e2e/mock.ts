@@ -18,13 +18,16 @@ const localHour = (date: Date) =>
 // Visits in a given hour: steady, with a daily rhythm, different per site
 const visitsAt = (date: Date, site: number) => ((date.getUTCHours() * 7 + date.getUTCDate() * 3 + site) % 5) + site
 
-function days(start: Date, end: Date, site: number) {
+// A quiet site: one visit at noon (UTC) every other day
+const sparseAt = (date: Date) => (date.getUTCHours() === 12 && date.getUTCDate() % 2 === 0 ? 1 : 0)
+
+function days(start: Date, end: Date, site: number, sparse = false) {
   const out = new Map<string, number[]>()
   for (let t = start.getTime(); t < end.getTime(); t += 3600000) {
     const date = new Date(t)
     const day = localDay(date)
     const hourly = out.get(day) ?? Array<number>(24).fill(0)
-    hourly[localHour(date)]! += visitsAt(date, site)
+    hourly[localHour(date)]! += sparse ? sparseAt(date) : visitsAt(date, site)
     out.set(day, hourly)
   }
   return [...out].map(([day, hourly]) => ({ day, hourly, daily: hourly.reduce((a, b) => a + b, 0) }))
@@ -36,6 +39,10 @@ export interface MockOptions {
   token?: string
   /** A key without the "Read sites" permission: GoatCounter refuses to list the sites */
   sitesForbidden?: boolean
+  /** Fewer visits than days */
+  sparse?: boolean
+  /** The countries to answer, instead of France and Germany */
+  locations?: { id: string; name: string; count: number }[]
 }
 
 export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
@@ -59,7 +66,7 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
     if (options.sitesForbidden && path === '/sites') return json({ error: 'no permission' }, 403)
     const start = new Date(url.searchParams.get('start') ?? Date.now() - 7 * 86400000)
     const end = new Date(url.searchParams.get('end') ?? Date.now())
-    const stats = days(start, end, site).map((day) =>
+    const stats = days(start, end, site, options.sparse).map((day) =>
       only ? { ...day, hourly: day.hourly.map((v) => Math.round(v / 3)), daily: Math.round(day.daily / 3) } : day,
     )
 
@@ -96,7 +103,7 @@ export async function mockGoatCounter(page: Page, options: MockOptions = {}) {
           more: false,
         })
       case '/stats/locations':
-        return json({ stats: [{ id: 'FR', name: 'France', count: 60 }, { id: 'DE', name: 'Germany', count: 40 }], more: false })
+        return json({ stats: options.locations ?? [{ id: 'FR', name: 'France', count: 60 }, { id: 'DE', name: 'Germany', count: 40 }], more: false })
       case '/stats/languages':
         return json({ stats: [], more: false })
       case '/stats/sizes':

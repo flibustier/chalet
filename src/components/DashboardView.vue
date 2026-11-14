@@ -4,7 +4,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, useTem
 import { createClient, type Connection, type Site } from '@/api/goatcounter'
 import { demoTransport } from '@/demo'
 import { useDashboard, type SectionKey } from '@/lib/dashboard'
-import { dayLabel, delta, formatNumber, formatPercent, longDay, siteName } from '@/lib/format'
+import { dayLabel, delta, formatAverage, formatNumber, formatPercent, longDay, numberFormat, siteName } from '@/lib/format'
 import { isDateKey, PERIODS, periodFor, periodForDay, shiftKey, todayKey, type PeriodId } from '@/lib/period'
 import { applyTheme, loadTheme, type Theme } from '@/lib/storage'
 
@@ -146,6 +146,8 @@ const cycleTheme = () => {
 }
 
 const visitsDelta = computed(() => (data.value ? delta(data.value.visits, data.value.previousVisits) : null))
+// 9.9K vs 10.2K, not 9,870 vs 10.2K
+const visitsFormat = computed(() => numberFormat(Math.max(data.value?.visits ?? 0, data.value?.previousVisits ?? 0)))
 const average = computed(() => {
   const points = data.value?.series ?? []
   return points.length ? data.value!.visits / points.length : 0
@@ -195,6 +197,7 @@ const SECTIONS = [
 
 <template>
   <div class="layout">
+    <a class="skip" href="#main">Skip to the figures</a>
     <header class="top">
       <a class="brand" :href="connection.demo ? './?demo' : './'">
         <ChaletLogo :size="26" />
@@ -219,7 +222,7 @@ const SECTIONS = [
         <a v-for="s in SECTIONS" :key="s.id" :href="`#${s.id}`">{{ s.label }}</a>
       </nav>
 
-      <main class="main">
+      <main id="main" class="main">
         <p v-if="connection.demo" class="demo-note">
           <span><strong>Demo</strong> · Made-up figures for three imaginary sites, computed in your browser.</span>
           <button class="button" type="button" @click="emit('disconnect')">Use your GoatCounter</button>
@@ -318,18 +321,19 @@ const SECTIONS = [
               <div class="tiles">
                 <div class="card tile">
                   <span class="muted">Visits</span>
-                  <strong>{{ formatNumber(data.visits) }}</strong>
+                  <strong>{{ visitsFormat(data.visits) }}</strong>
                   <span v-if="visitsDelta" class="delta" :class="visitsDelta.direction">
                     {{ visitsDelta.direction === 'up' ? '↑' : visitsDelta.direction === 'down' ? '↓' : '→' }}
-                    {{ visitsDelta.text }} <span class="muted">vs {{ formatNumber(data.previousVisits) }}</span>
+                    {{ visitsDelta.text }} <span class="muted">vs {{ visitsFormat(data.previousVisits) }}</span>
                   </span>
                 </div>
                 <div class="card tile">
                   <span class="muted">{{ averageLabel }}</span>
-                  <strong>{{ formatNumber(Math.round(average)) }}</strong>
+                  <strong>{{ formatAverage(average) }}</strong>
                   <span class="muted small">on average</span>
                 </div>
-                <div class="card tile">
+                <!-- A page never holds events: for one page, this would only ever say 0 -->
+                <div v-if="!pageId" class="card tile">
                   <span class="muted">Events</span>
                   <strong>{{ formatNumber(data.events) }}</strong>
                   <span class="muted small">custom events</span>
@@ -340,7 +344,7 @@ const SECTIONS = [
                   <span>Visits</span>
                   <span v-if="average > 0 && !asTable" class="key">
                     <svg width="20" height="6" aria-hidden="true"><line x1="1" x2="19" y1="3" y2="3" /></svg>
-                    avg {{ formatNumber(Math.round(average)) }} per {{ bucket }}
+                    avg {{ formatAverage(average) }} per {{ bucket }}
                   </span>
                   <button class="link" type="button" :aria-pressed="asTable" @click="asTable = !asTable">
                     {{ asTable ? 'Chart' : 'Table' }}
@@ -466,6 +470,23 @@ const SECTIONS = [
 <style scoped>
 .layout {
   min-height: 100vh;
+}
+
+/* For the keyboard: past the header and the sections, straight to the figures */
+.skip {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 10;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transform: translateY(-200%);
+}
+
+.skip:focus {
+  transform: none;
 }
 
 .top {
@@ -766,6 +787,15 @@ const SECTIONS = [
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: 0.75rem;
   margin-bottom: 0.75rem;
+  container-type: inline-size;
+}
+
+/* Two tiles a row (a phone): the visits get the first row to themselves, rather than the
+   last tile sitting alone beside a hole */
+@container (18.75rem <= width < 28.5rem) {
+  .tile:first-child:nth-last-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 
 .tile {

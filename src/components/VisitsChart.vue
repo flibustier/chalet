@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import type { Point } from '@/lib/dashboard'
-import { bucketLabel, formatNumber } from '@/lib/format'
+import { bucketLabel, formatAverage, formatExact, numberFormat } from '@/lib/format'
 import type { Bucket } from '@/lib/period'
 
 const props = defineProps<{ points: Point[]; bucket: Bucket; asTable: boolean; selectable?: boolean }>()
@@ -36,21 +36,23 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
-// Clean ticks: 0 and up to 3 steps of 1, 2 or 5 × 10^n
+// Clean ticks: 0 and up to 3 steps of 1, 2 or 5 × 10^n, never less than a whole visit
 const ticks = computed(() => {
   const max = Math.max(1, ...props.points.map((point) => point.value))
   const rough = max / 3
   const power = 10 ** Math.floor(Math.log10(rough))
-  const step = [1, 2, 5, 10].map((m) => m * power).find((s) => s >= rough) ?? power * 10
+  const step = Math.max(1, [1, 2, 5, 10].map((m) => m * power).find((s) => s >= rough) ?? power * 10)
   const top = Math.max(step, Math.ceil(max / step) * step)
   return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step)
 })
 
 const top = computed(() => ticks.value[ticks.value.length - 1] ?? 1)
+// 5K under 10K, not 5,000
+const tickFormat = computed(() => numberFormat(top.value))
 const average = computed(() =>
   props.points.length ? props.points.reduce((sum, point) => sum + point.value, 0) / props.points.length : 0,
 )
-const averageText = computed(() => `avg ${formatNumber(Math.round(average.value))}`)
+const averageText = computed(() => `avg ${formatAverage(average.value)}`)
 const plotWidth = computed(() => width.value - LEFT)
 const plotHeight = HEIGHT - AXIS
 const band = computed(() => plotWidth.value / Math.max(1, props.points.length))
@@ -109,13 +111,13 @@ function onKey(event: KeyboardEvent) {
       <tbody>
         <tr v-for="point in points" :key="point.key">
           <td>{{ label(point) }}</td>
-          <td>{{ formatNumber(point.value) }}</td>
+          <td>{{ formatExact(point.value) }}</td>
         </tr>
       </tbody>
       <tfoot>
         <tr>
           <th scope="row">Average</th>
-          <td>{{ formatNumber(Math.round(average)) }}</td>
+          <td>{{ formatAverage(average) }}</td>
         </tr>
       </tfoot>
     </table>
@@ -134,7 +136,7 @@ function onKey(event: KeyboardEvent) {
         <g class="grid">
           <g v-for="tick in ticks" :key="tick">
             <line :x1="LEFT" :x2="width" :y1="y(tick)" :y2="y(tick)" />
-            <text :x="LEFT - 8" :y="y(tick)" dy="0.32em" text-anchor="end">{{ formatNumber(tick) }}</text>
+            <text :x="LEFT - 8" :y="y(tick)" dy="0.32em" text-anchor="end">{{ tickFormat(tick) }}</text>
           </g>
         </g>
         <g>
@@ -177,7 +179,7 @@ function onKey(event: KeyboardEvent) {
         />
       </svg>
       <div v-if="tooltip" class="tooltip" :style="{ left: `${tooltip.left}px`, top: `${tooltip.top}px` }" aria-live="polite">
-        <strong>{{ formatNumber(tooltip.point.value) }}</strong>
+        <strong>{{ formatExact(tooltip.point.value) }}</strong>
         <span>{{ tooltip.point.value === 1 ? 'visit' : 'visits' }} · {{ label(tooltip.point) }}</span>
         <span v-if="selectable" class="hint">Click to see its hours</span>
       </div>
