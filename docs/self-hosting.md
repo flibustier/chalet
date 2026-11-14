@@ -143,8 +143,8 @@ networks:
 **With Portainer:** open *Stacks → Add stack*, give it a name, choose *Web editor* and paste
 the stack above. Under *Environment variables*, add `GOATCOUNTER_DOMAIN` and
 `CHALET_DOMAIN` with your domains, then *Deploy the stack*. To run the commands of the next
-section, open the `goatcounter` container in Portainer and use its *Console* (command
-`/bin/sh`), and leave out `docker compose exec goatcounter`.
+section, open the `goatcounter` container in Portainer, choose *Console*, pick `/bin/sh` and
+*Connect*; type the commands without `docker compose exec goatcounter`.
 
 **With Docker Compose:** save the stack as `compose.yaml` next to the `.env` file of setup 1,
 and run `docker compose up -d`.
@@ -203,8 +203,8 @@ docker compose pull
 docker compose up -d
 ```
 
-In Portainer, open the stack, turn on *Re-pull image and redeploy* and click *Update the
-stack*.
+In Portainer, open the stack's *Editor* tab and click *Update the stack*; in the window that
+opens, turn on *Re-pull image and redeploy* and confirm with *Update*.
 
 **Backups.** Everything GoatCounter records is in its volume, in an SQLite database. Stop
 GoatCounter for a moment so the copy is consistent, and save the volume as one archive:
